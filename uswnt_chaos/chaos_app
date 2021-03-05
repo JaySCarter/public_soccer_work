@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Mar  4 19:27:02 2021
+Created on Thu Mar  4 19:27:02 20213
 
 @author: J
 """
@@ -151,7 +151,7 @@ def main(positions_matter=False, new_position_limits=False):
     ## Print Summary
     team_summary(team)
     
-    print(team)
+    # print(team)
 
     team_comp_bar_chart = team['pos'].value_counts().reindex(index=['GK', 'DF', 'MF', 'FW'])
 
