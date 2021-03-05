@@ -1,0 +1,170 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar  4 19:27:02 2021
+
+@author: J
+"""
+
+import random
+
+import janitor
+import pandas as pd
+import pandas_flavor as pf
+import streamlit as st
+
+
+from collections import Counter
+
+# CONSTANTS
+POSITION_ABBREVIATIONS = ['GK', 'DF', 'MF', 'FW']
+POSITION_LIMITS_DEFAULT = {
+            'GK' : 2,
+            'DF' : 6, 
+            'MF' : 5,
+            'FW' : 5,
+            'total' : 18}
+
+@st.cache
+def get_player_names_from_fbref_github():
+    ## Get the data from Github
+    data_link = 'https://github.com/JaySCarter/public_soccer_work/blob/main/data/Book1.xlsx?raw=true'
+    # print(data_link)
+
+    all_dfs_dict = pd.read_excel(data_link, sheet_name=None, engine='openpyxl')
+
+    ## Make a dataframe of all the players
+    df = pd.DataFrame()
+    for d in all_dfs_dict.keys():
+        df=df.append(all_dfs_dict[d], ignore_index=True)
+    
+    clean_df = df.clean_names().remove_columns(['gls_1','ast_1','g+a', 'g_pk_1', 'g+a_pk'])
+    clean_df = fix_positions(clean_df)
+
+    ## Need to mess with the stats a bit more
+    # clean_df = clean_df.drop_duplicates(subset='player', keep='first')
+    clean_df = clean_df.groupby(['player', 'pos']).sum().reset_index()
+
+    ## Light data cleaning
+    return_df = fix_positions(clean_df)
+
+    ## Add Column for weights - initialized as all uniform
+    return_df['weights'] = .5
+    
+    ## Remake Per 90 Stats
+    return_df = per_90_stats(return_df).clean_names()
+
+    return return_df
+
+
+def fix_positions(df):
+    '''
+    Called from get_player_names_from_fbref_github
+    '''
+    df.loc[df['player'] == 'Kristie Mewis', 'pos'] = 'MF'
+    df.loc[df['player'] == 'Ali Krieger', 'pos'] = 'DF'
+    df.loc[df['player'] == 'Megan Rapinoe', 'pos'] = 'FW'
+    df.loc[df['player'] == 'Margaret Purce', 'pos'] = 'DF'
+
+    return df
+
+
+def make_team(df, limits, positions_matter=False):
+    '''
+    df = clean df from fbref data
+    limits = dict of limits per position
+    positions_matter: if True, select players by position; if False, randomly select players
+    return: df of team
+    '''
+
+    if positions_matter:
+        team_keepers = df.loc[df.pos == 'GK'].sample(n=limits['GK'])
+        team_defenders = df.loc[df.pos == 'DF'].sample(n=limits['DF'])
+        team_midfielders = df.loc[df.pos == 'MF'].sample(n=limits['MF'])
+        team_forwards = df.loc[df.pos == 'FW'].sample(n=limits['FW'])
+        team = team_keepers.append(team_defenders).append(team_midfielders).append(team_forwards)
+    else:
+        team = df.sample(n=limits['total'])
+
+    return team
+
+
+def get_position_limits():
+    gk = input("Number of Goalkeepers:\n")
+    df = input("Number of Defenders:\n")
+    mf = input("Number of Midfielders:\n")
+    fw = input("Number of Forwards:\n")
+    new_limits = {
+        'keepers' : gk,
+        'defenders' : df,
+        'midfielders' : mf,
+        'forwards' : fw
+    }
+
+    return new_limits
+
+
+def add_weights(df, player, weight):
+    df.loc[df['player']==player]['weight'] = weight
+    
+    return df
+
+
+def per_90_stats(df):
+    PER_90_COLUMNS = ['gp90', 'ap90', 'g+ap90', 'npgp90', 'npg+ap90']
+
+    df['gp90'] =  df['gls']/df['90s']    
+    df['ap90'] = df['ast']/df['90s']
+    df['g+ap90'] = (df['gls'] + df['ast'])/df['90s']
+    df['npgp90'] = (df['gls'] - df['g_pk'])/df['90s']
+    df['npg+ap90'] = (df['gls'] + df['ast'] - df['g_pk'])/df['90s']
+
+    for col in PER_90_COLUMNS:
+        df.fillna({col : 0}, inplace=True)
+    return df
+
+
+def team_summary(team):
+    for x in POSITION_ABBREVIATIONS:
+        print(f"{x}: {len(team.loc[team['pos'] == x])}")
+    
+    for x in POSITION_ABBREVIATIONS:
+        print(f"{x}s:\n {team.loc[team['pos'] == x]['player'].to_string(index=False)}\n")
+
+    return 0
+
+
+def main(positions_matter=False, new_position_limits=False):
+    ## Get Data
+    df = get_player_names_from_fbref_github()
+
+    ### Update Limits
+    if new_position_limits:
+        ### User Input
+        pos_limits = get_position_limits()
+    else:
+        ## Default Constant
+        pos_limits = POSITION_LIMITS_DEFAULT
+
+    ## Make the team
+    team = make_team(df=df, limits=pos_limits, positions_matter=False)
+    
+    ## Print Summary
+    team_summary(team)
+    
+    print(team)
+
+    team_comp_bar_chart = team['pos'].value_counts().reindex(index=['GK', 'DF', 'MF', 'FW'])
+
+
+    st.title("Jay's USWNT Chaos Generator")
+    st.subheader('Raw Data')
+    st.write(df)
+    st.subheader('Team')
+    st.write(team.sort_values(by=['pos']).reset_index(drop=True))
+    st.subheader('Team Makeup')
+    st.bar_chart(team_comp_bar_chart)
+
+
+
+main()
+
