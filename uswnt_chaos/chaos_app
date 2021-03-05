@@ -27,7 +27,7 @@ POSITION_LIMITS_DEFAULT = {
 @st.cache
 def get_player_names_from_fbref_github():
     ## Get the data from Github
-    data_link = 'https://github.com/JaySCarter/public_soccer_work/blob/main/data/Book1.xlsx?raw=true'
+    data_link = 'https://github.com/JaySCarter/public_soccer_work/blob/main/data/USWNT_from_fbref_210304.xlsx?raw=true'
     # print(data_link)
 
     all_dfs_dict = pd.read_excel(data_link, sheet_name=None, engine='openpyxl')
